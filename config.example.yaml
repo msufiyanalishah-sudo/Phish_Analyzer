@@ -1,0 +1,89 @@
+# Phish Analyzer configuration.
+# "python -m phishanalyzer init" copies this file to config.yaml. Anything you leave out uses the default
+# from phishanalyzer/config.py. Every setting is explained in docs/CONFIGURATION.md.
+# API keys go in .env, not here.
+
+# --- Where the user reports land ------------------------------------------------------------------
+mailbox:
+  store: ""                                   # "" = your default mailbox, or a shared mailbox's display name
+  source_folder: "Inbox/Phishing Alert"       # CHANGE ME: run "python -m phishanalyzer list-folders" to see names
+  report_subject_regex: '^\s*\[Phish Alert\]' # only real reports (KnowBe4 PAB); skips "RE: [Phish Alert]" replies
+  analyze_item_without_attachment: true       # analyze emails moved into the folder directly
+  # Only for the "once"/"run" mailbox mode (tags and moves each report):
+  processed_subfolder: "Processed"
+  move_processed: true
+  category_prefix: "Phish-"
+  poll_minutes: 5
+
+# --- Continuous mode ("watch") --------------------------------------------------------------------
+watch:
+  poll_seconds: 120                           # check for new reports every 2 minutes
+  backfill_hours: 24                          # on start, also pick up reports from the last 24 hours
+
+shared_report:
+  folder: ""                                  # CHANGE ME: OneDrive/SharePoint-synced team folder (required for "watch")
+  workbook: "Phishing Alert Log.xlsx"
+
+# --- Notifications --------------------------------------------------------------------------------
+notifications:
+  desktop: true                               # Windows popup for every analyzed report
+  email_alerts: true                          # alert email, once per email or campaign
+  email_verdicts: [MALICIOUS, SUSPICIOUS]
+  to: ""                                      # default recipient; "" = you (the signed-in Outlook user)
+  # recipients:                               # optional: different recipients per verdict
+  #   MALICIOUS:
+  #     to: [analyst1@yourcompany.com, analyst2@yourcompany.com]
+  #     cc: [infosec@yourcompany.com]
+
+daily_report:                                 # "python -m phishanalyzer daily-report"
+  to: ""                                      # "" = you
+  lookback_hours: 24
+  attach_malicious: false                     # keep false: emails with phishing samples get quarantined
+  attach_suspicious: false
+
+# --- Detection tuning -----------------------------------------------------------------------------
+heuristics:
+  internal_domains: ["yourcompany.com"]       # CHANGE ME: your own email domains
+  org_names: []                               # extra company names, e.g. ["Your Company"]
+  vip_names: []                               # executives attackers impersonate, e.g. ["Jane Doe"]
+  new_domain_days: 30
+  allowed_countries: []                       # e.g. [SA, AE, PK]; empty = no country check
+  simulation_markers: ["X-PHISHTEST", "X-KnowBe4", "X-PhishMe", "X-Gophish"]
+  simulation_sender_ips: []                   # recommended: your simulation vendor's sending IPs
+  # protected_domains / trusted_domains / vt_skip_domains: defaults are in phishanalyzer/config.py.
+  # A list set here REPLACES the default list, so copy it from there first if you want to extend it.
+
+scoring:
+  suspicious: 30
+  malicious: 60
+
+# --- Threat intel ---------------------------------------------------------------------------------
+intel:
+  virustotal:
+    enabled: true                             # needs VT_API_KEY in .env
+    requests_per_minute: 4                    # free API = 4/min, 500/day
+    max_url_lookups: 6
+    max_file_lookups: 5
+    malicious_threshold_file: 3
+    malicious_threshold_url: 2
+    malicious_threshold_domain: 5
+  abuseipdb:
+    enabled: true                             # needs ABUSEIPDB_API_KEY in .env (optional)
+  rdap:
+    enabled: true                             # domain age, no key needed
+    max_domains: 8
+  cache_hours: 24
+
+network:
+  use_system_trust: true                      # Windows certificate store (works behind SSL inspection)
+  ca_bundle: ""                               # or a path to your corporate root CA .pem
+  timeout_seconds: 20
+  dns_checks: true
+
+# --- Files ----------------------------------------------------------------------------------------
+outputs:
+  report_dir: "reports"
+  data_dir: "data"
+  log_dir: "logs"
+  quarantine_dir: "quarantine"
+  save_raw_email: false                       # true keeps each analyzed email (antivirus may react)

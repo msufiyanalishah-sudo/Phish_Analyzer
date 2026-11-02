@@ -1,0 +1,15 @@
+Received: from mail.contoso.com (mail.contoso.com [52.1.2.3]) by
+ mx.contoso.com; Mon, 12 Oct 2026 10:00:01 +0000
+Authentication-Results: mx.contoso.com; spf=pass smtp.mailfrom=contoso.com;
+ dkim=pass header.d=contoso.com; dmarc=pass action=none
+ header.from=contoso.com
+From: IT Team <it@contoso.com>
+To: user@contoso.com
+Subject: Team lunch
+Date: Mon, 12 Oct 2026 10:00:00 +0000
+Message-ID: <7637711644676419798@mail.example>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Lunch is at 1pm on Thursday.

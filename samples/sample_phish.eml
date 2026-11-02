@@ -1,0 +1,32 @@
+Received: from mail.contoso.com (mail.contoso.com [52.1.2.3]) by
+ mx.contoso.com; Mon, 12 Oct 2026 10:00:01 +0000
+Authentication-Results: spf=fail (sender IP is 45.33.32.156)
+ smtp.mailfrom=micros0ft-secure.com; dkim=none; dmarc=fail action=none
+ header.from=micros0ft-secure.com; compauth=fail reason=000
+From: Microsoft 365 <no-reply@micros0ft-secure.com>
+To: user@contoso.com
+Subject: Password expiry notice
+Date: Mon, 12 Oct 2026 10:00:00 +0000
+Message-ID: <4048184243895270009@mail.example>
+Reply-To: helpdesk.ms365@gmail.com
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============7701823027543490655=="
+
+--===============7701823027543490655==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Your password expires today. Verify your account immediately.
+
+--===============7701823027543490655==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body><p>Your password expires today. Verify your account immediately t=
+o keep your Microsoft 365 mailbox.</p>
+<a href=3D"https://micros0ft-secure.com/login.php">https://login.microsoftonl=
+ine.com</a></body></html>
+
+--===============7701823027543490655==--

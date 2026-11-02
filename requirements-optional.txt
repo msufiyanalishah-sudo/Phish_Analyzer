@@ -1,0 +1,3 @@
+# QR-code decoding in image attachments (quishing). Large download; install only if needed.
+opencv-python-headless>=4.9
+numpy>=1.26
