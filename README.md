@@ -75,7 +75,7 @@ Only the `analyze` command works without Outlook. It analyzes `.eml`/`.msg` file
 
 The repository is private, so ask the owner to add you as a collaborator first. Clone it into a **short path** such as `C:\Tools`: Windows' 260-character path limit breaks the `pywin32` install in deep folders.
 ```bash
-git clone https://github.com/msufiyanalishah-sudo/Tools.git C:\Tools\phish-analyzer
+git clone https://github.com/msufiyanalishah-sudo/phish-analyzer.git C:\Tools\phish-analyzer
 ```
 ```bash
 cd C:\Tools\phish-analyzer
