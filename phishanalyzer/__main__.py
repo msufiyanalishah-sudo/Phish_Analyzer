@@ -77,7 +77,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list-folders", help="show Outlook folders (to set source_folder)")
     p_watch = sub.add_parser("watch", help="continuously add new reports to the shared team log")
     p_watch.add_argument("--once", action="store_true", help="run one cycle and exit")
-    sub.add_parser("relog", help="re-analyze every email in the shared Excel log and update its rows (after a rule fix)")
+    p_relog = sub.add_parser("relog", help="re-analyze emails in the shared Excel log and update their rows (after a rule fix)")
+    p_relog.add_argument("--days", type=float, help="only rows reported in the last N days")
+    p_relog.add_argument("--from", dest="date_from", help="only rows reported on/after this date (YYYY-MM-DD)")
+    p_relog.add_argument("--to", dest="date_to", help="only rows reported on/before this date (YYYY-MM-DD)")
     p_daily = sub.add_parser("daily-report", help="analyze recent reports and email a summary with remediation")
     p_daily.add_argument("--hours", type=float, help="look back this many hours (default: daily_report.lookback_hours)")
     p_daily.add_argument("--dry-run", action="store_true", help="build the report but do not send the email")
@@ -140,9 +143,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "relog":
         from .relog import relog
-        stats = relog(cfg, intel, store)
-        print(f"Updated {stats['updated']} of {stats['rows']} rows; {stats['changed_verdict']} verdict(s) changed. "
-              f"Backup: {stats['backup']}")
+        from datetime import datetime, timedelta
+        start = datetime.now() - timedelta(days=args.days) if args.days else (
+            datetime.fromisoformat(args.date_from) if args.date_from else None)
+        end = datetime.fromisoformat(args.date_to) + timedelta(days=1) if args.date_to else None
+        stats = relog(cfg, intel, store, start, end)
+        print(f"Updated {stats['updated']} of {stats['rows']} rows in range; {stats['changed_verdict']} verdict(s) changed; "
+              f"{stats['skipped_quota']} left unchanged (quota). Backup: {stats['backup']}")
         return 0
     if args.command == "daily-report":
         from .daily_report import run_daily_report

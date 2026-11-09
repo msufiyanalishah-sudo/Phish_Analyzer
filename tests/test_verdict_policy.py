@@ -120,3 +120,18 @@ def test_authenticated_hr_vendor_mentioning_our_company_is_not_high_risk(cfg, in
                    "dmarc=pass action=none header.from=notes-vendor.example")
     r = analyze_bytes(m.as_bytes(), "x.eml", cfg, intel)
     assert "high_risk_pattern" not in r.tags and r.verdict != "MALICIOUS"
+
+
+def test_help_center_article_about_logging_in_is_not_a_login_page(cfg, intel):
+    """Regression ('Your Flocknote code'): help-centre article titled 'How do I log in? - ... Help Center'."""
+    url = "https://help.vendor-two.example/article/50-how-do-i-setup-a-login"
+    intel.vt = VT({url: _report(0, title="How do I log in? - Vendor Help Center", final_url=url)})
+    r = analyze_bytes(_email(url, sender="App <mail@vendor-two.example>", auth=None), "x.eml", cfg, intel)
+    assert r.verdict != "MALICIOUS" and "login_page" not in r.tags
+
+
+def test_help_page_flagged_as_phishing_by_virustotal_is_still_malicious(cfg, intel):
+    url = "https://help.evil-cdn.example/article/login"
+    intel.vt = VT({url: _report(0, title="Help Center", categories=["phishing"])})
+    r = analyze_bytes(_email(url, sender="IT <it@other.example>", auth=None), "x.eml", cfg, intel)
+    assert r.verdict == "MALICIOUS"

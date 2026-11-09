@@ -16,7 +16,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from .config import resolve_path
 from .intel import Intel
 from .models import CaseResult
-from .outlook_com import OL_MAIL_ITEM, analyze_item, connect, find_folder, is_user_report, received_time
+from .outlook_com import OL_MAIL_ITEM, _reporter, analyze_item, connect, find_folder, is_user_report, received_time
 from .pipeline import save_case
 from .shared_log import FILLS, LOG_COLUMNS, WorkbookLocked, log_row, publish_case, refresh_daily, shared_paths
 from .store import CaseStore
@@ -26,11 +26,20 @@ log = logging.getLogger(__name__)
 KEEP_COLUMNS = {"Status", "Analyst Notes"}
 
 
+def _quota_error(message: str) -> bool:
+    low = message.lower()
+    return "quota" in low or "429" in low or "401" in low or "rate limit reached" in low
+
+
 def _key(reporter, reported_at) -> tuple[str, str]:
     return (str(reporter or "").strip().lower(), str(reported_at or "").strip())
 
 
-def relog(cfg: dict, intel: Intel, store: CaseStore) -> dict[str, int]:
+def relog(cfg: dict, intel: Intel, store: CaseStore, start: datetime | None = None,
+          end: datetime | None = None) -> dict[str, int]:
+    """Re-analyze rows whose 'Reported At' is between start and end (all rows when both are None).
+    A row is left unchanged when a threat-intel quota ran out during its analysis, so a partial result never
+    overwrites a complete one; re-run later to finish."""
     paths = shared_paths(cfg)
     wb_path = paths["workbook"]
     backup_dir = resolve_path(cfg, cfg["outputs"]["data_dir"]) / "backups"
@@ -45,13 +54,18 @@ def relog(cfg: dict, intel: Intel, store: CaseStore) -> dict[str, int]:
     col = {name: header.index(name) + 1 for name in header}
     rows: dict[tuple[str, str], list[int]] = {}
     oldest = datetime.now()
+    in_range = 0
     for r in range(2, ws.max_row + 1):
         key = _key(ws.cell(r, col["Reported By"]).value, ws.cell(r, col["Reported At"]).value)
-        rows.setdefault(key, []).append(r)
         try:
-            oldest = min(oldest, datetime.fromisoformat(key[1]))
+            when = datetime.fromisoformat(key[1])
         except ValueError:
-            pass
+            continue
+        if (start and when < start) or (end and when > end):
+            continue
+        rows.setdefault(key, []).append(r)
+        oldest = min(oldest, when)
+        in_range += 1
 
     ns = connect()
     folder = find_folder(ns, cfg["mailbox"].get("store", ""), cfg["mailbox"]["source_folder"])
@@ -59,7 +73,7 @@ def relog(cfg: dict, intel: Intel, store: CaseStore) -> dict[str, int]:
     items.Sort("[ReceivedTime]", True)
     cutoff = oldest - timedelta(minutes=5)
     workroot = resolve_path(cfg, cfg["outputs"]["quarantine_dir"])
-    stats = {"rows": ws.max_row - 1, "updated": 0, "changed_verdict": 0}
+    stats = {"rows": in_range, "updated": 0, "changed_verdict": 0, "skipped_quota": 0}
     updated: dict[int, CaseResult] = {}
     case_moves: list[tuple[str, str, str, str]] = []   # old case id, new case id, json, shared html
 
@@ -67,18 +81,30 @@ def relog(cfg: dict, intel: Intel, store: CaseStore) -> dict[str, int]:
         item = items.Item(i)
         if item.Class != OL_MAIL_ITEM:
             continue
-        if received_time(item) < cutoff:
+        received = received_time(item)
+        if received < cutoff:
             break
+        if end and received > end + timedelta(minutes=5):
+            continue
         if not is_user_report(item, cfg):
+            continue
+        # Don't spend lookups on reports that aren't rows in range.
+        if _key(_reporter(item), received.isoformat(sep=" ", timespec="minutes")) not in rows:
             continue
         workdir = Path(tempfile.mkdtemp(prefix="relog_", dir=workroot))
         try:
             analyzed = analyze_item(item, cfg, intel, workdir)
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
+        quota_hit = False
         for result, raw, _ in analyzed:
             targets = [r for r in rows.get(_key(result.reported_by, result.reported_at), []) if r not in updated]
             if not targets:
+                continue
+            if any(_quota_error(e) for e in result.errors):
+                stats["skipped_quota"] += 1
+                quota_hit = True
+                log.warning("Quota reached; row left unchanged: %s", result.original.get("subject", ""))
                 continue
             row = targets[0]
             saved = save_case(result, cfg, store, raw or None)
@@ -104,6 +130,9 @@ def relog(cfg: dict, intel: Intel, store: CaseStore) -> dict[str, int]:
             if old_verdict != result.verdict:
                 stats["changed_verdict"] += 1
                 log.info("Row %d: %s -> %s  %s", row, old_verdict, result.verdict, result.original.get("subject", ""))
+        if quota_hit:
+            log.warning("Stopping: a threat-intel quota ran out. Run relog again later for the remaining rows.")
+            break
 
     # Rebuild the IOC sheet: fresh IOCs for updated cases, existing rows for cases not re-analyzed.
     iocs = wb["IOCs"]

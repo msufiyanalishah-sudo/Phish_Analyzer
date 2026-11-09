@@ -213,11 +213,31 @@ LOGIN_TITLE_RE = re.compile(
     r"\b(?:sign[ -]?in|log[ -]?in|logon|webmail|outlook web|office ?365|microsoft ?365|one ?drive|share ?point|"
     r"docusign|enter (?:your )?password|verify your (?:account|identity|email))\b", re.I)
 
+HELP_HOST_LABELS = {"help", "support", "docs", "doc", "kb", "faq", "faqs", "knowledge", "community", "learn", "blog"}
+HELP_PATH_RE = re.compile(r"/(?:articles?|help|docs?|kb|faqs?|support|knowledge-?base|hc|blog|guides?|tutorials?)/", re.I)
+HELP_TITLE_RE = re.compile(r"(?:help ?cent(?:er|re)|support|knowledge ?base|faq|documentation|how (?:do|to|can) i)",
+                           re.I)
+
+
+def _is_help_page(entry: dict) -> bool:
+    """A help-centre article about signing in ('How do I log in?') is not a login form."""
+    vt = entry.get("virustotal") or {}
+    if entry["host"].split(".")[0].lower() in HELP_HOST_LABELS:
+        return True
+    try:
+        if HELP_PATH_RE.search(urlsplit(entry["url"]).path + "/"):
+            return True
+    except ValueError:
+        pass
+    return bool(vt.get("title") and HELP_TITLE_RE.search(vt["title"]))
+
 
 def _login_page_reason(entry: dict) -> str:
     vt = entry.get("virustotal") or {}
     if any("phish" in str(c).lower() for c in vt.get("categories") or []):
         return "VirusTotal categorizes the page as phishing"
+    if _is_help_page(entry):
+        return ""
     if vt.get("title") and LOGIN_TITLE_RE.search(vt["title"]):
         return f"page title seen by VirusTotal: '{vt['title'][:80]}'"
     final = vt.get("final_url") or ""
