@@ -23,6 +23,7 @@ class Intel:
         self.vt: VirusTotal | None = None
         self.abuse: AbuseIPDB | None = None
         self.rdap: Rdap | None = None
+        self.llm = None                    # ClaudeReviewer when configured
         self.notes: list[str] = []
         if offline:
             self.notes.append("Threat-intel lookups were disabled for this run (--no-intel).")
@@ -50,6 +51,15 @@ class Intel:
             self.abuse = AbuseIPDB(abuse_key, session, cache, timeout)
         if icfg["rdap"].get("enabled"):
             self.rdap = Rdap(session, cache, timeout)
+        if cfg.get("llm", {}).get("enabled"):
+            if os.environ.get("ANTHROPIC_API_KEY", "").strip():
+                try:
+                    from ..analyzers.llm import ClaudeReviewer
+                    self.llm = ClaudeReviewer(cfg, cache)
+                except ImportError:
+                    self.notes.append("Claude review skipped: the 'anthropic' package is not installed.")
+            else:
+                self.notes.append("Claude review skipped: ANTHROPIC_API_KEY is not set in .env.")
 
     @property
     def active(self) -> bool:

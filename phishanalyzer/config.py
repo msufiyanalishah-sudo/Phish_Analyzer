@@ -76,6 +76,17 @@ DEFAULTS: dict[str, Any] = {
     # MALICIOUS needs confirmed evidence (VirusTotal-flagged link, malicious attachment, login page). A high score
     # alone gives a high-confidence SUSPICIOUS, unless allow_score_malicious is true.
     "scoring": {"suspicious": 30, "malicious": 60, "allow_score_malicious": False},
+    # Claude second opinion on intent (needs ANTHROPIC_API_KEY in .env). Advisory: adjusts the score by +/- points
+    # and can veto only a login-path-only MALICIOUS signal; VirusTotal and attachment evidence always win.
+    "llm": {
+        "enabled": True,
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "max_body_chars": 8000,
+        "points": 15,
+        "min_confidence": 80,             # below this, the opinion is shown but changes nothing
+        "veto_confidence": 85,            # "legitimate" at this confidence cancels a login-path-only MALICIOUS
+    },
     "shared_report": {
         "folder": "",                     # OneDrive/SharePoint-synced folder for the team log
         "workbook": "Phishing Alert Log.xlsx",

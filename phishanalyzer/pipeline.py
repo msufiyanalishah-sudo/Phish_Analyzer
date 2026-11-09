@@ -10,6 +10,7 @@ from .analyzers.attachments import analyze_attachments
 from .analyzers.auth import analyze_auth
 from .analyzers.body import analyze_body
 from .analyzers.headers import analyze_headers, hget
+from .analyzers.llm import analyze_llm
 from .analyzers.sender import analyze_sender
 from .analyzers.urls import analyze_urls
 from .config import resolve_path
@@ -57,6 +58,7 @@ def analyze_parsed(pe: ParsedEmail, cfg: dict, intel: Intel, reported_by: str = 
     candidates += _step(result, "Attachment analysis", analyze_attachments, attachments, result, cfg, intel) or []
     _step(result, "URL analysis", analyze_urls, candidates, result, cfg, intel)
     _step(result, "Sender reputation", analyze_sender, result, cfg, intel)
+    _step(result, "Claude review", analyze_llm, pe, result, cfg, intel)
     return finalize(result, cfg, intel.active)
 
 

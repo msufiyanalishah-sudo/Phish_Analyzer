@@ -28,7 +28,8 @@ def setup_logging(cfg: dict, verbose: bool) -> None:
     root.addHandler(file_handler)
     if sys.stderr is not None:   # pythonw (Task Scheduler) has no console
         root.addHandler(console)
-    for noisy in ("urllib3", "olevba", "extract_msg", "chardet", "charset_normalizer"):
+    for noisy in ("urllib3", "olevba", "extract_msg", "chardet", "charset_normalizer", "httpx", "httpx2",
+                  "httpcore", "httpcore2", "anthropic"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 

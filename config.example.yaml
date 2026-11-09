@@ -75,6 +75,16 @@ intel:
     max_domains: 8
   cache_hours: 24
 
+# --- Claude second opinion (optional; needs ANTHROPIC_API_KEY in .env) ---------------------------------
+llm:
+  enabled: true                               # skipped automatically when no key is set
+  model: claude-opus-5-5
+  effort: low
+  max_body_chars: 8000
+  points: 15                                  # +15 phishing/BEC/malware/scam, -15 legitimate/marketing
+  min_confidence: 80
+  veto_confidence: 85                         # can cancel only a login-path-only MALICIOUS
+
 network:
   use_system_trust: true                      # Windows certificate store (works behind SSL inspection)
   ca_bundle: ""                               # or a path to your corporate root CA .pem

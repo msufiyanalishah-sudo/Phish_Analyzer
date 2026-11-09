@@ -254,8 +254,12 @@ def _login_pages(entries: list[dict], result: CaseResult, cfg: dict) -> None:
         else:
             phishing.append(f"{entry['url_defanged']} ({reason})")
     if phishing:
+        # Path-only evidence (no VirusTotal title/redirect/category) is the weakest MALICIOUS signal.
+        tags = ["login_page", "credential_lure"]
+        if all(p.endswith("(login-style path in the link)") for p in phishing):
+            tags.append("login_heuristic")
         result.add("url", "Link goes to a login page on a non-legitimate site (credential phishing)", 50,
-                   "; ".join(phishing[:5]), hard_verdict="MALICIOUS", tags=["login_page", "credential_lure"])
+                   "; ".join(phishing[:5]), hard_verdict="MALICIOUS", tags=tags)
     if own_portal:
         result.add("url", "Link goes to the authenticated sender's own login portal", 5, "; ".join(own_portal[:3]))
 

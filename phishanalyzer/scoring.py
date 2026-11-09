@@ -45,6 +45,7 @@ def finalize(result: CaseResult, cfg: dict, intel_active: bool) -> CaseResult:
     for required, any_of, title in COMBINATIONS:
         if required <= tags and tags & any_of:
             result.add("verdict", title, 30, tags=["high_risk_pattern"])
+    _claude_veto(result, cfg)
     hard = {f.hard_verdict for f in result.findings if f.hard_verdict}
     score = max(0, min(100, sum(f.points for f in result.findings)))
     score_malicious = thresholds.get("allow_score_malicious", False) and score >= thresholds["malicious"]
@@ -69,6 +70,21 @@ def finalize(result: CaseResult, cfg: dict, intel_active: bool) -> CaseResult:
     result.recommended_actions = list(ACTIONS[verdict])
     result.iocs = build_iocs(result, cfg)
     return result
+
+
+def _claude_veto(result: CaseResult, cfg: dict) -> None:
+    """Claude may cancel only a login-path-only MALICIOUS signal. The email text is attacker-controlled, so it
+    can never cancel VirusTotal hits, malicious attachments or VirusTotal-confirmed login pages."""
+    llm = result.llm or {}
+    malicious = [f for f in result.findings if f.hard_verdict == "MALICIOUS"]
+    if not malicious or not all("login_heuristic" in f.tags for f in malicious):
+        return
+    if llm.get("intent") in ("legitimate", "spam_marketing") and \
+            llm.get("confidence", 0) >= cfg.get("llm", {}).get("veto_confidence", 85):
+        for f in malicious:
+            f.hard_verdict = None
+        result.add("verdict", "Login-style link not confirmed: Claude judged the email legitimate, so it stays SUSPICIOUS",
+                   0, f"{llm['intent']} ({llm['confidence']}%)")
 
 
 def build_iocs(result: CaseResult, cfg: dict) -> dict[str, list[str]]:

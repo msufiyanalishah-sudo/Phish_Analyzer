@@ -9,6 +9,7 @@ After changing settings, restart the watcher (Task Scheduler → *Phish Analyzer
 |---|---|---|
 | `VT_API_KEY` | Strongly recommended | virustotal.com → your profile → *API key* (free: 4 lookups/min, 500/day) |
 | `ABUSEIPDB_API_KEY` | Optional | abuseipdb.com → *Account* → *API* |
+| `ANTHROPIC_API_KEY` | Optional (paid) | console.anthropic.com → *API Keys*, for the Claude second opinion |
 
 ## `mailbox`: where reports come from
 | Setting | Default | Meaning |
@@ -84,6 +85,19 @@ Note: setting a list in `config.yaml` **replaces** the default list. To add a pr
 | `abuseipdb.enabled` | `true` | Needs `ABUSEIPDB_API_KEY` |
 | `rdap.enabled` / `rdap.max_domains` | `true` / `8` | Domain-age lookups (no key needed) |
 | `cache_hours` | `24` | How long lookups are cached |
+
+## `llm`: Claude second opinion (optional)
+Needs `ANTHROPIC_API_KEY` in `.env`, and is skipped automatically without it. About $0.02 per email. Results are cached, so re-analyzing the same email doesn't cost again.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Turn the Claude review on or off |
+| `model` | `claude-opus-5-5` | Claude model |
+| `effort` | `low` | Thinking effort (`low` is enough for classification and keeps it cheap) |
+| `max_body_chars` | `8000` | Body text sent; longer emails are cut, and the prompt says so |
+| `points` | `15` | Added for phishing/BEC/malware/scam, removed for legitimate/marketing |
+| `min_confidence` | `80` | Below this, the opinion is shown in the report but changes nothing |
+| `veto_confidence` | `85` | A "legitimate" opinion at this confidence cancels a login-path-only MALICIOUS (nothing else) |
 
 ## `network`
 | Setting | Default | Meaning |

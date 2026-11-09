@@ -31,6 +31,7 @@ class CaseResult:
     body: dict[str, Any] = field(default_factory=dict)
     urls: list[dict[str, Any]] = field(default_factory=list)
     attachments: list[dict[str, Any]] = field(default_factory=list)
+    llm: dict[str, Any] = field(default_factory=dict)     # Claude's second opinion (intent, confidence, reasons)
     findings: list[Finding] = field(default_factory=list)
     verdict: str = "UNKNOWN"
     score: int = 0

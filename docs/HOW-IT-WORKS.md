@@ -125,6 +125,17 @@ Files are **never uploaded** to VirusTotal. Only their SHA256 hash is looked up.
 | 40 | Sender domain flagged by ≥ `malicious_threshold_domain` (5) engines (stale detections are common, so never HARD) |
 | 5 | Email carries another email as an attachment |
 
+### Claude second opinion (`analyzers/llm.py`, optional)
+Claude reads a masked, defanged summary of the email (internal addresses, company name and phone numbers replaced) and returns an intent, a confidence and reasons, as structured JSON.
+
+| Points | Finding |
+|---:|---|
+| 15 | Claude: credential phishing / BEC / malware / scam with ≥ 80% confidence |
+| −15 | Claude: legitimate / marketing with ≥ 80% confidence |
+| 0 | Lower confidence: shown only |
+
+**Veto:** if the *only* MALICIOUS reason is a login-style path in a link (no VirusTotal title, redirect or category), and Claude is ≥ 85% sure the email is legitimate, that signal is cancelled and the email stays SUSPICIOUS. Claude can never cancel VirusTotal evidence or a malicious attachment, because the email text is attacker-controlled (prompt injection). If Claude declines or the API fails, the email is analyzed without it, and the error is listed in the report.
+
 ## 3. Combination rules (+30 points)
 Some weak signals are strong together. Each combination adds **30 points**, usually enough for a high-confidence SUSPICIOUS, but it never makes an email MALICIOUS on its own:
 

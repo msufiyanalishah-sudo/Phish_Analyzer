@@ -56,6 +56,7 @@ User clicks "Phish Alert"  ─►  Outlook folder "Phishing Alert"  ─►  Phis
 | **Attachments** | MD5/SHA1/SHA256 and VirusTotal hash lookup (files are never uploaded); real file type vs extension; double extensions and right-to-left names; executables, scripts, ISO/IMG/LNK/OneNote; Office macros (oletools) and remote templates; PDF JavaScript/Launch/embedded files and links; ZIP contents (recursive) and password-protected archives; HTML/SVG attachments with login forms or HTML smuggling |
 | **QR codes** | Decodes QR codes in images (quishing) and checks the decoded links like any other URL |
 | **Nested emails** | An email attached inside the reported email is analyzed too, recursively |
+| **Claude second opinion** (optional) | Claude classifies the intent (credential phishing, BEC, malware, scam, marketing, legitimate) with a confidence and reasons. This adds or removes 15 points, and it can only cancel the weakest MALICIOUS signal (see the verdict section). |
 
 ## Requirements
 
@@ -65,7 +66,7 @@ User clicks "Phish Alert"  ─►  Outlook folder "Phishing Alert"  ─►  Phis
 | **Python** | 3.11 or newer (tested on 3.14) |
 | **Outlook** | **Classic Outlook** (desktop), signed in to the mailbox that receives the reports. The *New Outlook* app has no automation interface and will not work. |
 | **Internet** | For VirusTotal, AbuseIPDB and RDAP. Works behind corporate SSL inspection (uses the Windows certificate store). |
-| **API keys** | [VirusTotal](https://www.virustotal.com/gui/my-apikey) (free; strongly recommended). [AbuseIPDB](https://www.abuseipdb.com/account/api) (free; optional). |
+| **API keys** | [VirusTotal](https://www.virustotal.com/gui/my-apikey) (free; strongly recommended). [AbuseIPDB](https://www.abuseipdb.com/account/api) (free; optional). [Anthropic](https://console.anthropic.com/) (optional, paid: about $0.02 per email, for the Claude second opinion). |
 
 Only the `analyze` command works without Outlook. It analyzes `.eml`/`.msg` files from disk.
 
@@ -103,7 +104,9 @@ This creates `config.yaml` and `.env` from the examples. Neither file is ever co
 ```
 VT_API_KEY=your_virustotal_key
 ABUSEIPDB_API_KEY=
+ANTHROPIC_API_KEY=
 ```
+`ANTHROPIC_API_KEY` is optional. Without it, the Claude second opinion is skipped automatically.
 
 **5. Set the minimum settings.** Open `config.yaml` and change at least:
 ```yaml
@@ -231,6 +234,11 @@ Everything else is scored: every finding adds points, or removes them (e.g. an a
 
 A high-confidence SUSPICIOUS email strongly matches a phishing pattern, but the tool found no confirmed malicious link, attachment or login page. Examples: a QR-code payroll lure whose link VirusTotal doesn't know yet, or a lookalike sender without links. An analyst decides those.
 
+**Claude second opinion** (when `ANTHROPIC_API_KEY` is set):
+- "phishing / BEC / malware / scam" at ≥ 80% confidence adds 15 points; "legitimate / marketing" removes 15.
+- It can **cancel** a MALICIOUS verdict only when the sole reason was a login-style path in a link (no VirusTotal evidence) and it is ≥ 85% sure the email is legitimate. The email then stays SUSPICIOUS.
+- It can **never** cancel a VirusTotal-flagged link, a malicious attachment or a VirusTotal-confirmed login page. Attackers can write instructions to AI inside an email (prompt injection), so the hard evidence always wins.
+
 Special verdicts:
    - **SIMULATION**: the email has a phishing-simulation header (KnowBe4, GoPhish...). Set `simulation_sender_ips` so attackers can't fake it.
    - **UNANALYZABLE**: the report has no attached email, because the user forwarded it normally. Ask them to use the Phish Alert Button or *Forward as Attachment* (Ctrl+Alt+F).
@@ -242,7 +250,8 @@ Details of every check and its points are in **[docs/HOW-IT-WORKS.md](docs/HOW-I
 ## Privacy and safety
 
 - **Nothing is executed or opened.** Links are not visited, attachments are not run, HTML is not rendered.
-- **What leaves your machine:** only lookups of hashes, URLs, domains and IPs (VirusTotal, AbuseIPDB) and domain names (rdap.org). Files are **never uploaded**, and URLs are **never submitted** for scanning.
+- **What leaves your machine:** lookups of hashes, URLs, domains and IPs (VirusTotal, AbuseIPDB) and domain names (rdap.org). Files are **never uploaded**, and URLs are **never submitted** for scanning.
+- **Claude second opinion (only if `ANTHROPIC_API_KEY` is set):** the subject, sender, authentication results, visible body text (up to 8,000 characters), defanged links and attachment names are sent to Anthropic's API. Internal email addresses, your company name and phone numbers are masked first; reporters and recipients are never sent. Anthropic does not train models on API data. **Get your organization's approval before enabling it.**
 - **Everything shown to people is defanged** (`hxxps://evil[.]com`). Every email the tool sends is defanged automatically, because a live phishing link in an email gets it quarantined by Microsoft 365. Raw indicators are only in the Excel IOCs sheet and `result.json`.
 - **Secrets stay local:** `.env` (API keys), `config.yaml`, `reports\`, `data\`, `logs\` and `Exports\` are in `.gitignore`.
 - Antivirus/EDR may react to phishing attachments while they're briefly saved for analysis. Prefer a SOC analysis workstation.
