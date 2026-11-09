@@ -55,7 +55,8 @@ heuristics:
 
 scoring:
   suspicious: 30
-  malicious: 60
+  malicious: 60                               # 60+ = high-confidence SUSPICIOUS
+  allow_score_malicious: false                # true = a score of 60+ alone also means MALICIOUS (more false positives)
 
 # --- Threat intel ---------------------------------------------------------------------------------
 intel:
@@ -65,7 +66,7 @@ intel:
     max_url_lookups: 6
     max_file_lookups: 5
     malicious_threshold_file: 3
-    malicious_threshold_url: 2
+    malicious_threshold_url: 3                # vendors flagging a link before the email is MALICIOUS
     malicious_threshold_domain: 5
   abuseipdb:
     enabled: true                             # needs ABUSEIPDB_API_KEY in .env (optional)

@@ -9,7 +9,8 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from ..intel import Intel, IntelError
 from ..models import CaseResult
-from ..utils import defang_domain, defang_url, domain_matches, is_ip, lookalike_of, registrable_domain, url_host
+from ..utils import (ESP_DOMAINS, defang_domain, defang_url, domain_matches, domain_of, is_ip, lookalike_of,
+                     registrable_domain, url_host)
 
 log = logging.getLogger(__name__)
 
@@ -199,7 +200,64 @@ def analyze_urls(candidates: list[tuple[str, str]], result: CaseResult, cfg: dic
     skip = h.get("vt_skip_domains") or []
     _virustotal([e for e in external if not domain_matches(e["host"], skip)], result, cfg, intel)
     _domain_age(external, result, cfg, intel)
+    _login_pages(external, result, cfg)
     result.urls = list(entries.values())
+
+
+# A link "goes to a login page" when its path, its final URL after redirects, or the page title seen by
+# VirusTotal's crawler looks like a sign-in form. We never open links ourselves.
+LOGIN_PATH_RE = re.compile(
+    r"(?:^|[/_.\-])(?:log-?in|sign-?in|log-?on|sign-?on|sso|owa|webmail|wp-login|authenticate|authori[sz]e|"
+    r"oauth2?|auth|password|passwd|credentials?|verify-?account|account-?verif\w*)(?=$|[/_.\-?#])", re.I)
+LOGIN_TITLE_RE = re.compile(
+    r"\b(?:sign[ -]?in|log[ -]?in|logon|webmail|outlook web|office ?365|microsoft ?365|one ?drive|share ?point|"
+    r"docusign|enter (?:your )?password|verify your (?:account|identity|email))\b", re.I)
+
+
+def _login_page_reason(entry: dict) -> str:
+    vt = entry.get("virustotal") or {}
+    if any("phish" in str(c).lower() for c in vt.get("categories") or []):
+        return "VirusTotal categorizes the page as phishing"
+    if vt.get("title") and LOGIN_TITLE_RE.search(vt["title"]):
+        return f"page title seen by VirusTotal: '{vt['title'][:80]}'"
+    final = vt.get("final_url") or ""
+    if final and final != entry["url"]:
+        try:
+            if LOGIN_PATH_RE.search(urlsplit(final).path):
+                return f"redirects to a login path: {defang_url(final)[:120]}"
+        except ValueError:
+            pass
+    try:
+        if LOGIN_PATH_RE.search(urlsplit(entry["url"]).path):
+            return "login-style path in the link"
+    except ValueError:
+        pass
+    return ""
+
+
+def _login_pages(entries: list[dict], result: CaseResult, cfg: dict) -> None:
+    h = cfg["heuristics"]
+    legit = h["trusted_domains"] + h["protected_domains"] + h["internal_domains"] + list(h.get("vt_skip_domains") or [])
+    legit += list(ESP_DOMAINS)
+    sender = registrable_domain(domain_of(result.original.get("from_address", "")))
+    sender_authenticated = result.auth.get("dmarc") == "pass"
+    phishing, own_portal = [], []
+    for entry in entries:
+        if domain_matches(entry["host"], legit):
+            continue   # the genuine Microsoft / Google / DocuSign sign-in pages are not phishing
+        reason = _login_page_reason(entry)
+        if not reason:
+            continue
+        entry["login_page"] = reason
+        if sender_authenticated and entry["domain"] == sender:
+            own_portal.append(f"{entry['url_defanged']} ({reason})")   # a real vendor linking to its own portal
+        else:
+            phishing.append(f"{entry['url_defanged']} ({reason})")
+    if phishing:
+        result.add("url", "Link goes to a login page on a non-legitimate site (credential phishing)", 50,
+                   "; ".join(phishing[:5]), hard_verdict="MALICIOUS", tags=["login_page", "credential_lure"])
+    if own_portal:
+        result.add("url", "Link goes to the authenticated sender's own login portal", 5, "; ".join(own_portal[:3]))
 
 
 def _virustotal(entries: list[dict], result: CaseResult, cfg: dict, intel: Intel) -> None:
@@ -208,7 +266,7 @@ def _virustotal(entries: list[dict], result: CaseResult, cfg: dict, intel: Intel
     vcfg = cfg["intel"]["virustotal"]
     url_threshold = vcfg["malicious_threshold_url"]
     domain_threshold = vcfg.get("malicious_threshold_domain", 5)
-    flagged, weak = [], []
+    flagged, bad_domain, weak = [], [], []
     for entry in entries[: vcfg["max_url_lookups"]]:
         try:
             report = intel.vt.url(entry["url"])
@@ -220,17 +278,25 @@ def _virustotal(entries: list[dict], result: CaseResult, cfg: dict, intel: Intel
                 break
             continue
         entry["virustotal"] = report
-        stats = report if report.get("found") else report.get("domain_report", {})
-        what = "URL" if report.get("found") else f"domain {defang_domain(entry['domain'])}"
-        mal, sus = stats.get("malicious", 0), stats.get("suspicious", 0)
-        threshold = url_threshold if report.get("found") else domain_threshold
-        if mal >= threshold:
-            flagged.append(f"{entry['url_defanged']} ({what}: {mal} engines)")
-        elif mal >= 1 or sus >= 2:
-            weak.append(f"{entry['url_defanged']} ({what}: {mal} malicious / {sus} suspicious)")
+        if report.get("found"):
+            mal, sus = report.get("malicious", 0), report.get("suspicious", 0)
+            if mal >= url_threshold:     # the only VirusTotal result that alone makes an email MALICIOUS
+                flagged.append(f"{entry['url_defanged']} ({mal} vendors)")
+            elif mal >= 1 or sus >= 2:
+                weak.append(f"{entry['url_defanged']} (URL: {mal} malicious / {sus} suspicious)")
+        else:
+            dom = report.get("domain_report", {})
+            mal, sus = dom.get("malicious", 0), dom.get("suspicious", 0)
+            if mal >= domain_threshold:
+                bad_domain.append(f"{entry['url_defanged']} (domain {defang_domain(entry['domain'])}: {mal} engines)")
+            elif mal >= 1 or sus >= 2:
+                weak.append(f"{entry['url_defanged']} (domain: {mal} malicious / {sus} suspicious)")
     if flagged:
-        result.add("url", "Link flagged malicious on VirusTotal", 50, "; ".join(flagged[:5]),
+        result.add("url", f"Link flagged malicious by {url_threshold}+ VirusTotal vendors", 50, "; ".join(flagged[:5]),
                    hard_verdict="MALICIOUS", tags=["vt_malicious"])
+    if bad_domain:
+        result.add("url", "Link's domain flagged by many VirusTotal engines (the link itself is unknown)", 30,
+                   "; ".join(bad_domain[:5]), tags=["vt_domain_bad"])
     if weak:
         result.add("url", "Link or its domain flagged by a few VirusTotal engines", 20, "; ".join(weak[:5]))
     skipped = len(entries) - vcfg["max_url_lookups"]

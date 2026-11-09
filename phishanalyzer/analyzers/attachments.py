@@ -152,8 +152,11 @@ def _html_attachment(data: bytes, flag, candidates: list, name: str) -> None:
     text = data.decode("utf-8", errors="replace")
     low = text.lower()
     flag("HTML/SVG attachment (common phishing and smuggling vector)", 15, tags=["html_attachment"])
-    if "<form" in low or 'type="password"' in low or "type='password'" in low or "type=password" in low:
-        flag("HTML attachment contains a login form", 30, tags=["credential_lure"])
+    if re.search(r"""type\s*=\s*["']?password""", low):
+        # A local HTML page asking for a password is a phishing login page delivered as a file.
+        flag("HTML attachment is a login page (password field)", 50, "MALICIOUS", ["credential_lure", "login_page"])
+    elif "<form" in low:
+        flag("HTML attachment contains a form", 30, tags=["credential_lure"])
     smuggling = sorted(set(m.group(0) for m in HTML_SMUGGLING.finditer(text)))
     long_b64 = re.search(r"[A-Za-z0-9+/=]{2000,}", text)
     if smuggling and long_b64:

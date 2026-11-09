@@ -85,8 +85,9 @@ def analyze_sender(result: CaseResult, cfg: dict, intel: Intel) -> None:
                 mal = vt.get("malicious", 0)
                 total = sum(vt.get(k, 0) for k in ("malicious", "suspicious", "harmless", "undetected"))
                 if mal >= cfg["intel"]["virustotal"].get("malicious_threshold_domain", 5):
-                    result.add("domain", f"{role} domain flagged malicious on VirusTotal", 50,
-                               f"{defang_domain(domain)}: {mal}/{total} engines", hard_verdict="MALICIOUS", tags=["vt_malicious"])
+                    # Whole sender domains collect stale detections (hacked sites, old spam): strong evidence, not proof.
+                    result.add("domain", f"{role} domain flagged by many VirusTotal engines", 40,
+                               f"{defang_domain(domain)}: {mal}/{total} engines", tags=["vt_domain_bad"])
                 elif mal >= 1:
                     result.add("domain", f"{role} domain flagged by a few VirusTotal engines", 20,
                                f"{defang_domain(domain)}: {mal}/{total} engines (low; may be stale)", tags=["vt_low"])

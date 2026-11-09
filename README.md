@@ -209,15 +209,29 @@ The PC must be on and you must be signed in, because the tool reads your Outlook
 
 ## How the verdict is decided
 
-1. **Hard rules**: any one of these makes the email **MALICIOUS**:
-   - an attachment hash flagged by ≥ 3 VirusTotal engines, a URL by ≥ 2, or a domain by ≥ 5,
+To keep false positives low, an email is **MALICIOUS only on confirmed evidence**, meaning at least one of:
+
+1. **A link flagged by ≥ 3 VirusTotal vendors** (`malicious_threshold_url`). This applies to links in the body, in attachments and in QR codes.
+2. **A malicious attachment**:
+   - a hash flagged by ≥ 3 VirusTotal vendors,
    - an executable, script, disk image or disguised file (double extension, wrong real type, right-to-left name),
    - an auto-running macro with suspicious functions, an Office remote template, or HTML smuggling,
-   - a credential lure on a lookalike, newly registered or spoofed domain,
-   - an external sender using **your company name** together with an HR, credential or QR-code lure,
-   - a QR code combined with a lure (QR-code phishing).
-2. **Otherwise, a score**: every finding adds points (or removes them, e.g. an authenticated internal sender). **0–29 CLEAN, 30–59 SUSPICIOUS, 60+ MALICIOUS.**
-3. **Special verdicts**:
+   - an HTML attachment with a password field (a phishing page delivered as a file).
+3. **A link to a login page on a non-legitimate site** (credential phishing). The tool never opens the link. A link counts as a login page if any of these is true:
+   - VirusTotal's crawler saw a sign-in page title ("Sign in", "Outlook", "Office 365"...),
+   - the link redirects to a login path,
+   - VirusTotal categorizes the page as phishing,
+   - the link's own path is a login path (`/login`, `/signin`, `/owa`, `wp-login`, `/auth`...).
+
+   Genuine sign-in pages (Microsoft, Google, DocuSign... see `trusted_domains`) don't count. A link from an **authenticated** sender (DMARC pass) to **its own** domain's portal doesn't count either.
+
+Everything else is scored: every finding adds points, or removes them (e.g. an authenticated internal sender).
+- **0–29 → CLEAN**
+- **30 and up → SUSPICIOUS**: Medium confidence below 60, **High confidence at 60+**.
+
+A high-confidence SUSPICIOUS email strongly matches a phishing pattern, but the tool found no confirmed malicious link, attachment or login page. Examples: a QR-code payroll lure whose link VirusTotal doesn't know yet, or a lookalike sender without links. An analyst decides those.
+
+Special verdicts:
    - **SIMULATION**: the email has a phishing-simulation header (KnowBe4, GoPhish...). Set `simulation_sender_ips` so attackers can't fake it.
    - **UNANALYZABLE**: the report has no attached email, because the user forwarded it normally. Ask them to use the Phish Alert Button or *Forward as Attachment* (Ctrl+Alt+F).
 

@@ -31,7 +31,7 @@ Outlook report  ──►  extract attached email (.eml / .msg / Outlook item)
 
 ## 2. Findings and points
 
-Points add up to the score (capped at 0–100). A finding marked **HARD** makes the email MALICIOUS regardless of the score.
+Points add up to the score (capped at 0–100). Only a finding marked **HARD** makes the email MALICIOUS. There are just three kinds: a link flagged by 3+ VirusTotal vendors, a malicious attachment, and a link to a login page on a non-legitimate site.
 
 ### Headers (`headers.py`)
 | Points | Finding |
@@ -92,7 +92,10 @@ Links are collected from the text and HTML bodies, attachments (PDF, Office, HTM
 | 10 | File-sharing link (WeTransfer, Dropbox, Google Drive, MEGA, **another company's SharePoint**) |
 | 5 | High-risk TLD · long subdomain chain · login-style path · login page without HTTPS |
 | 20 | URL or its domain flagged by a few VirusTotal engines |
-| 50 **HARD** | URL flagged by ≥ `malicious_threshold_url` (2) engines, or, if VirusTotal doesn't know the URL, its domain by ≥ `malicious_threshold_domain` (5) |
+| 50 **HARD** | Link flagged by ≥ `malicious_threshold_url` (**3**) VirusTotal vendors |
+| 50 **HARD** | Link goes to a **login page** on a non-legitimate site: VirusTotal saw a sign-in page title, the link redirects to a login path, VirusTotal categorizes it as phishing, or the link's path is `/login`, `/signin`, `/owa`, `wp-login`, `/auth`... Genuine sign-in sites (`trusted_domains`) and an authenticated sender's own portal are excluded. |
+| 30 | VirusTotal doesn't know the link, but its domain is flagged by ≥ `malicious_threshold_domain` (5) engines |
+| 5 | Link to the authenticated sender's own login portal |
 
 ### Attachments (`attachments.py`)
 | Points | Finding |
@@ -102,7 +105,8 @@ Links are collected from the text and HTML bodies, attachments (PDF, Office, HTM
 | 50 **HARD** | Auto-running macro with suspicious functions (oletools) · HTML smuggling |
 | 40 **HARD** | Office document loads a remote template/object |
 | 50 **HARD** | Hash flagged by ≥ `malicious_threshold_file` (3) VirusTotal engines |
-| 30 | HTML attachment contains a login form |
+| 50 **HARD** | HTML attachment with a password field (a phishing login page delivered as a file) |
+| 30 | HTML attachment contains a form (no password field) |
 | 20 | Office macros present · PDF JavaScript/Launch · password-protected archive · HTML script that redirects/decodes · hash flagged by 1–2 engines |
 | 15 | HTML/SVG attachment · content doesn't match the extension |
 | 10 | PDF embedded file · image contains a QR code · archive too large (possible zip bomb) |
@@ -118,11 +122,11 @@ Files are **never uploaded** to VirusTotal. Only their SHA256 hash is looked up.
 | 5 | Sender IP in a country outside `allowed_countries` |
 | 20 / 15 | From / Reply-To domain registered within `new_domain_days` |
 | 20 | Sender domain flagged by a few VirusTotal engines (may be stale) |
-| 50 **HARD** | Sender domain flagged by ≥ `malicious_threshold_domain` (5) engines |
+| 40 | Sender domain flagged by ≥ `malicious_threshold_domain` (5) engines (stale detections are common, so never HARD) |
 | 5 | Email carries another email as an attachment |
 
-## 3. Combination rules (HARD → MALICIOUS)
-Some weak signals are strong together:
+## 3. Combination rules (+30 points)
+Some weak signals are strong together. Each combination adds **30 points**, usually enough for a high-confidence SUSPICIOUS, but it never makes an email MALICIOUS on its own:
 
 | Combination | Example |
 |---|---|
@@ -133,13 +137,15 @@ Some weak signals are strong together:
 ## 4. Verdict
 | Verdict | When |
 |---|---|
-| **MALICIOUS** | Any HARD finding or combination rule, or score ≥ `scoring.malicious` (60) |
-| **SUSPICIOUS** | Score ≥ `scoring.suspicious` (30). Always needs an analyst's review. |
+| **MALICIOUS** | Any HARD finding (VirusTotal-flagged link, malicious attachment, login page) |
+| **SUSPICIOUS** | Score ≥ `scoring.suspicious` (30); **high confidence** from `scoring.malicious` (60). Always needs an analyst's review. |
 | **CLEAN** | Score below 30 |
 | **SIMULATION** | Phishing-simulation header from a trusted source |
 | **UNANALYZABLE** | The report doesn't contain the original email (the user did a normal Forward) |
 
-**Confidence:** High for hard rules and scores ≥ 80. Medium for scores in between. For CLEAN, High only when threat-intel lookups actually ran.
+**Confidence:** MALICIOUS is always High. SUSPICIOUS is High from score 60, otherwise Medium. CLEAN is High only when threat-intel lookups actually ran.
+
+Set `scoring.allow_score_malicious: true` to get the old behaviour (a score of 60+ alone means MALICIOUS). This catches more, but gives more false positives.
 
 ## 5. Remediation advice
 For MALICIOUS and SUSPICIOUS emails, the tool writes three lists (in `daily_report.build_remediation`):

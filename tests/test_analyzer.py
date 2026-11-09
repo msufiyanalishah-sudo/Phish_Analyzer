@@ -159,9 +159,9 @@ def test_html_attachment_with_login_form(cfg, intel):
               attachments=[("Document.html", page)])
     r = analyze_bytes(m.as_bytes(), "x.eml", cfg, intel)
     titles = {f.title for f in r.findings}
-    assert "HTML attachment contains a login form" in titles
+    assert "HTML attachment is a login page (password field)" in titles
     assert any(u["url"] == "https://collect.example/p" for u in r.urls)
-    assert r.verdict in ("SUSPICIOUS", "MALICIOUS")
+    assert r.verdict == "MALICIOUS"          # a phishing login page delivered as a file = malicious attachment
 
 
 class FakeVT:

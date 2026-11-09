@@ -25,11 +25,11 @@ def test_popup_per_email_and_one_alert_per_campaign(cfg, intel, tmp_path, monkey
     new.append((analyze_bytes(build().as_bytes(), "c.eml", cfg, intel, reported_by="c@contoso.com"), Path(tmp_path / "c.html")))
 
     notify_mod.notify(new, cfg, store, tmp_path / "daily.html")
-    assert len(popups) == 3 and popups[0][0].split()[1] == "MALICIOUS" and popups[0][1] is True
+    assert len(popups) == 3 and popups[0][0].split()[1] == "SUSPICIOUS" and popups[0][1] is True
     assert popups[2][1] is False                                  # clean email: quiet popup
     assert len(mails) == 1                                        # 2 campaign copies -> one alert, clean -> none
     to, subject, html, cc = mails[0]
-    assert to == "soc@contoso.com" and cc == "" and subject.startswith("[MALICIOUS]") and "(2 reports)" in subject
+    assert to == "soc@contoso.com" and cc == "" and subject.startswith("[SUSPICIOUS]") and "(2 reports)" in subject
     assert "Do NOT block" in html
 
     notify_mod.notify(new, cfg, store, None)                      # same campaign again: no second email

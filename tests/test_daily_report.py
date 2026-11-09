@@ -26,11 +26,12 @@ def salary_campaign(sender):
     return outer
 
 
-def test_company_name_salary_lure_from_outsider_is_malicious_and_grouped(cfg, intel):
+def test_company_name_salary_lure_without_confirmed_evidence_is_high_risk_suspicious(cfg, intel):
+    """No VirusTotal hit, no malicious attachment, no login page: strong pattern, but an analyst decides."""
     entries = []
     for i, sender in enumerate(("info@hacked-site1.example", "admin@hacked-site2.example")):
         r = analyze_bytes(salary_campaign(sender).as_bytes(), "x.eml", cfg, intel, reported_by=f"u{i}@contoso.com")
-        assert r.verdict == "MALICIOUS", [(f.title, f.points) for f in r.findings]
+        assert r.verdict == "SUSPICIOUS" and r.confidence == "High", [(f.title, f.points) for f in r.findings]
         assert {"internal_impersonation", "hr_lure"} <= r.tags
         entries.append({"result": r, "raw": b"x", "name": "x.eml", "entry_id": str(i), "report": ""})
     groups = group_entries(entries)

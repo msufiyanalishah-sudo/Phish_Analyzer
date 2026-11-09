@@ -79,8 +79,8 @@ Note: setting a list in `config.yaml` **replaces** the default list. To add a pr
 | `virustotal.requests_per_minute` | `4` | Free API limit. Raise it for a premium key. |
 | `virustotal.max_url_lookups` / `max_file_lookups` | `10` / `10` | Per email, to protect the 500/day quota |
 | `virustotal.malicious_threshold_file` | `3` | Engines needed to call a file hash MALICIOUS |
-| `virustotal.malicious_threshold_url` | `2` | Engines needed to call a URL MALICIOUS |
-| `virustotal.malicious_threshold_domain` | `5` | Engines needed to call a whole domain MALICIOUS (domains collect stale detections) |
+| `virustotal.malicious_threshold_url` | `3` | Vendors that must flag a link before it alone makes the email MALICIOUS |
+| `virustotal.malicious_threshold_domain` | `5` | Engines from which a domain counts as "bad reputation" (adds points; never MALICIOUS on its own, since domains collect stale detections) |
 | `abuseipdb.enabled` | `true` | Needs `ABUSEIPDB_API_KEY` |
 | `rdap.enabled` / `rdap.max_domains` | `true` / `8` | Domain-age lookups (no key needed) |
 | `cache_hours` | `24` | How long lookups are cached |
@@ -97,7 +97,8 @@ Note: setting a list in `config.yaml` **replaces** the default list. To add a pr
 | Setting | Default | Meaning |
 |---|---|---|
 | `suspicious` | `30` | Score from which an email is SUSPICIOUS |
-| `malicious` | `60` | Score from which an email is MALICIOUS |
+| `malicious` | `60` | Score from which SUSPICIOUS becomes **high confidence** |
+| `allow_score_malicious` | `false` | `true` = a score ≥ `malicious` alone also makes an email MALICIOUS (old behaviour, more false positives). By default, MALICIOUS needs a VirusTotal-flagged link, a malicious attachment, or a login page. |
 
 ## `analysis`
 | Setting | Default | Meaning |

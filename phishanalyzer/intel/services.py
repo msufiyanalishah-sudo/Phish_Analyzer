@@ -88,6 +88,9 @@ class VirusTotal:
             "country": attrs.get("country", ""),
             "as_owner": attrs.get("as_owner", ""),
             "categories": sorted(set((attrs.get("categories") or {}).values()))[:5],
+            # URL reports: what VirusTotal's own crawler saw (used for login-page detection; we never visit links).
+            "title": (attrs.get("title") or "")[:200],
+            "final_url": attrs.get("last_final_url") or "",
             "link": f"{self.GUI}/{kind}/{data.get('id', '')}",
         }
 

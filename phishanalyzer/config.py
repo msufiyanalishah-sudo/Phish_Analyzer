@@ -32,7 +32,7 @@ DEFAULTS: dict[str, Any] = {
             "max_url_lookups": 10,
             "max_file_lookups": 10,
             "malicious_threshold_file": 3,
-            "malicious_threshold_url": 2,
+            "malicious_threshold_url": 3,   # vendors flagging a link before it alone makes the email MALICIOUS
             # Whole domains collect stale detections, so a domain needs more engines before it alone means MALICIOUS.
             "malicious_threshold_domain": 5,
         },
@@ -73,7 +73,9 @@ DEFAULTS: dict[str, Any] = {
         "max_archive_depth": 2,
         "max_archive_total_mb": 50,
     },
-    "scoring": {"suspicious": 30, "malicious": 60},
+    # MALICIOUS needs confirmed evidence (VirusTotal-flagged link, malicious attachment, login page). A high score
+    # alone gives a high-confidence SUSPICIOUS, unless allow_score_malicious is true.
+    "scoring": {"suspicious": 30, "malicious": 60, "allow_score_malicious": False},
     "shared_report": {
         "folder": "",                     # OneDrive/SharePoint-synced folder for the team log
         "workbook": "Phishing Alert Log.xlsx",

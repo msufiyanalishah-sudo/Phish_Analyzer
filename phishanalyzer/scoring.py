@@ -27,37 +27,38 @@ ACTIONS = {
 }
 
 
+COMBINATIONS = [   # strong together, but only evidence for an analyst: they raise the score, never force MALICIOUS
+    ({"credential_lure"}, {"lookalike", "new_domain", "internal_spoof"},
+     "Credential lure combined with a lookalike, new or spoofed domain"),
+    ({"internal_impersonation"}, {"hr_lure", "credential_lure", "qr"},
+     "External sender impersonates our company with an HR/credential/QR lure"),
+    ({"qr"}, {"credential_lure", "hr_lure", "bec", "brand_impersonation", "image_only", "victim_email"},
+     "QR-code phishing pattern: QR code combined with a lure"),
+]
+
+
 def finalize(result: CaseResult, cfg: dict, intel_active: bool) -> CaseResult:
+    """MALICIOUS only on confirmed evidence: a link flagged by enough VirusTotal vendors, a malicious attachment,
+    or a link to a login page on a non-legitimate site. Everything else is at most SUSPICIOUS."""
     thresholds = cfg["scoring"]
-    hard = {f.hard_verdict for f in result.findings if f.hard_verdict}
     tags = result.tags
+    for required, any_of, title in COMBINATIONS:
+        if required <= tags and tags & any_of:
+            result.add("verdict", title, 30, tags=["high_risk_pattern"])
+    hard = {f.hard_verdict for f in result.findings if f.hard_verdict}
     score = max(0, min(100, sum(f.points for f in result.findings)))
+    score_malicious = thresholds.get("allow_score_malicious", False) and score >= thresholds["malicious"]
 
     if "UNANALYZABLE" in hard:
         verdict, confidence = "UNANALYZABLE", "High"
     elif "SIMULATION" in hard:
         verdict, confidence = "SIMULATION", "High"
-    elif "MALICIOUS" in hard:
+    elif "MALICIOUS" in hard or score_malicious:
         verdict, confidence = "MALICIOUS", "High"
-        score = max(score, 90)
-    elif "credential_lure" in tags and tags & {"lookalike", "new_domain", "internal_spoof"}:
-        result.add("verdict", "Credential lure combined with a lookalike, new or spoofed domain", 0,
-                   hard_verdict="MALICIOUS")
-        verdict, confidence = "MALICIOUS", "High"
-        score = max(score, 85)
-    elif "internal_impersonation" in tags and tags & {"hr_lure", "credential_lure", "qr"}:
-        result.add("verdict", "External sender impersonates our company with an HR/credential/QR lure", 0,
-                   hard_verdict="MALICIOUS")
-        verdict, confidence = "MALICIOUS", "High"
-        score = max(score, 85)
-    elif "qr" in tags and tags & {"credential_lure", "hr_lure", "bec", "brand_impersonation", "image_only", "victim_email"}:
-        result.add("verdict", "QR-code phishing: QR code combined with a lure", 0, hard_verdict="MALICIOUS")
-        verdict, confidence = "MALICIOUS", "High"
-        score = max(score, 85)
-    elif score >= thresholds["malicious"]:
-        verdict, confidence = "MALICIOUS", "High" if score >= 80 else "Medium"
+        score = max(score, 90) if "MALICIOUS" in hard else score
     elif score >= thresholds["suspicious"]:
-        verdict, confidence = "SUSPICIOUS", "Medium"
+        verdict = "SUSPICIOUS"
+        confidence = "High" if score >= thresholds["malicious"] else "Medium"   # high-risk: review first
     else:
         verdict = "CLEAN"
         confidence = "High" if intel_active and score < 15 else "Medium" if score < 15 else "Low"
