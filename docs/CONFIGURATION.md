@@ -65,6 +65,7 @@ notifications:
 | `vip_names` | `[]` | Executives attackers may impersonate in the display name |
 | `protected_domains` | Microsoft, DocuSign, PayPal, DHL... | Domains checked for lookalikes. Your internal domains are always included. |
 | `trusted_domains` | Microsoft, SharePoint, LinkedIn... | Genuine domains that must never be called lookalikes |
+| `login_wall_domains` | Instagram, Facebook, X, YouTube, GitHub, Zoom... | Sites that send signed-out visitors to their own login page; links to them are never treated as phishing login pages |
 | `vt_skip_domains` | Microsoft, Google, LinkedIn... | Genuine domains not sent to VirusTotal (saves quota). Don't add file-sharing domains here. |
 | `new_domain_days` | `30` | Domains younger than this are flagged |
 | `allowed_countries` | `[]` | e.g. `[SA, AE, PK]`. Sender IPs elsewhere get +5. Empty = no check. |

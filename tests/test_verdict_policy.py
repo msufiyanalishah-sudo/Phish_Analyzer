@@ -92,3 +92,31 @@ def test_high_score_without_evidence_is_high_confidence_suspicious(cfg, intel):
     r = analyze_bytes(m.as_bytes(), "x.eml", cfg, intel)     # no links, no attachments
     assert r.score >= 60
     assert r.verdict == "SUSPICIOUS" and r.confidence == "High"
+
+
+def test_social_media_login_wall_is_not_a_phishing_login_page(cfg, intel):
+    """Regression: an Instagram link in a signature redirects signed-out visitors to /accounts/login."""
+    url = "https://instagram.com/vendorco?igshid=abc"
+    intel.vt = VT({url: _report(0, title="Instagram",
+                               final_url="https://www.instagram.com/accounts/login/?next=%2Fvendorco")})
+    r = analyze_bytes(_email(url), "x.eml", cfg, intel)
+    assert r.verdict != "MALICIOUS" and "login_page" not in r.tags
+
+
+def test_compromised_vendor_account_linking_to_fake_onedrive_is_malicious(cfg, intel):
+    """Regression ('RFP Proposal Invitation'): authenticated real sender, link to a fake OneDrive page elsewhere."""
+    url = "https://hacked-shop.example/kposrfp/2233441793630971334.html"
+    intel.vt = VT({url: _report(1, title="OneDrive")})
+    r = analyze_bytes(_email(url, text="Official RFP proposal invitation, please review the documents."),
+                      "x.eml", cfg, intel)
+    assert r.verdict == "MALICIOUS"
+
+
+def test_authenticated_hr_vendor_mentioning_our_company_is_not_high_risk(cfg, intel):
+    """Regression: a meeting-notes service sent 'Teams Interview with Contoso' (DMARC pass)."""
+    m = build(from_="Assistant <assistant@notes-vendor.example>", subject="Teams Interview with Contoso on Nov 7",
+              text="Summary of your interview and performance review discussion.",
+              auth="spf=pass smtp.mailfrom=notes-vendor.example; dkim=pass header.d=notes-vendor.example; "
+                   "dmarc=pass action=none header.from=notes-vendor.example")
+    r = analyze_bytes(m.as_bytes(), "x.eml", cfg, intel)
+    assert "high_risk_pattern" not in r.tags and r.verdict != "MALICIOUS"

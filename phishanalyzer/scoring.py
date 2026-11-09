@@ -42,9 +42,15 @@ def finalize(result: CaseResult, cfg: dict, intel_active: bool) -> CaseResult:
     or a link to a login page on a non-legitimate site. Everything else is at most SUSPICIOUS."""
     thresholds = cfg["scoring"]
     tags = result.tags
+    authenticated = result.auth.get("dmarc") == "pass"
     for required, any_of, title in COMBINATIONS:
-        if required <= tags and tags & any_of:
-            result.add("verdict", title, 30, tags=["high_risk_pattern"])
+        if not (required <= tags and tags & any_of):
+            continue
+        # Recruiters and HR vendors legitimately mention our company with HR words. From an authenticated sender,
+        # the company-name pattern counts only with a payload-like carrier (QR code or an attached email).
+        if "internal_impersonation" in required and authenticated and not tags & {"qr", "nested_email"}:
+            continue
+        result.add("verdict", title, 30, tags=["high_risk_pattern"])
     _claude_veto(result, cfg)
     hard = {f.hard_verdict for f in result.findings if f.hard_verdict}
     score = max(0, min(100, sum(f.points for f in result.findings)))

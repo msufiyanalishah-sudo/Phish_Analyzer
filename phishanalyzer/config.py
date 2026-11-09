@@ -61,6 +61,14 @@ DEFAULTS: dict[str, Any] = {
             "static.microsoft", "msauth.net", "msftauth.net", "linkedin.com", "licdn.com", "gstatic.com",
             "w3.org", "apple.com", "google.com",
         ],
+        # Sites that send every signed-out visitor to their own login page. A link to them is never a phishing
+        # login page (e.g. an Instagram link in a signature redirects to instagram.com/accounts/login).
+        "login_wall_domains": [
+            "instagram.com", "facebook.com", "fb.com", "twitter.com", "x.com", "tiktok.com", "youtube.com",
+            "pinterest.com", "reddit.com", "github.com", "gitlab.com", "zoom.us", "webex.com", "slack.com",
+            "salesforce.com", "force.com", "atlassian.net", "notion.so", "canva.com", "figma.com", "box.com",
+            "glassdoor.com", "indeed.com", "medium.com", "quora.com", "whatsapp.com", "telegram.org", "threads.net",
+        ],
         "vip_names": [],
         "org_names": [],                  # company names besides the internal domain label, e.g. ["Contoso Ltd"]
         "new_domain_days": 30,

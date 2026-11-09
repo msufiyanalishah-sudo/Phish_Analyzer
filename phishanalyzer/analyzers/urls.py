@@ -238,13 +238,14 @@ def _login_page_reason(entry: dict) -> str:
 def _login_pages(entries: list[dict], result: CaseResult, cfg: dict) -> None:
     h = cfg["heuristics"]
     legit = h["trusted_domains"] + h["protected_domains"] + h["internal_domains"] + list(h.get("vt_skip_domains") or [])
-    legit += list(ESP_DOMAINS)
+    legit += list(ESP_DOMAINS) + list(h.get("login_wall_domains") or [])
     sender = registrable_domain(domain_of(result.original.get("from_address", "")))
     sender_authenticated = result.auth.get("dmarc") == "pass"
     phishing, own_portal = [], []
     for entry in entries:
-        if domain_matches(entry["host"], legit):
-            continue   # the genuine Microsoft / Google / DocuSign sign-in pages are not phishing
+        final_host = url_host((entry.get("virustotal") or {}).get("final_url") or "")
+        if domain_matches(entry["host"], legit) or (final_host and domain_matches(final_host, legit)):
+            continue   # genuine sign-in pages (Microsoft, Google, social sites' login walls) are not phishing
         reason = _login_page_reason(entry)
         if not reason:
             continue
